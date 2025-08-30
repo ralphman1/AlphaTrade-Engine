@@ -1,0 +1,11 @@
+web3>=6.0.0
+pandas>=2.0.0
+requests
+pyyaml
+tweepy
+beautifulsoup4
+aiohttp
+python-dotenv
+plotly               # for optional dashboard/graphing
+matplotlib           # alternative plotting library
+python-dateutil      # for working with timestamps/dates
