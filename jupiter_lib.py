@@ -31,7 +31,7 @@ class JupiterCustomLib:
             print(f"❌ Failed to initialize wallet: {e}")
             self.keypair = None
 
-    def get_quote(self, input_mint: str, output_mint: str, amount: int, slippage: float = 0.02) -> Dict[str, Any]:
+    def get_quote(self, input_mint: str, output_mint: str, amount: int, slippage: float = 0.10) -> Dict[str, Any]:
         """Get swap quote from Jupiter v6 with enhanced error handling"""
         try:
             url = "https://quote-api.jup.ag/v6/quote"
@@ -112,9 +112,9 @@ class JupiterCustomLib:
                 "userPublicKey": self.wallet_address,
                 "wrapUnwrapSOL": True,
                 "computeUnitPriceMicroLamports": 1000,
-                "asLegacyTransaction": False,
-                "useSharedAccounts": True,
-                "maxAccounts": 32
+                "asLegacyTransaction": True,  # Use legacy format to reduce size
+                "useSharedAccounts": False,   # Disable shared accounts to reduce size
+                "maxAccounts": 16             # Reduce max accounts to reduce size
             }
             
             # Try multiple times with different strategies
@@ -133,12 +133,12 @@ class JupiterCustomLib:
                             
                             # Try with different parameters
                             if attempt == 1:
-                                print(f"🔄 Trying with legacy transaction format...")
-                                payload["asLegacyTransaction"] = True
+                                print(f"🔄 Trying with minimal accounts...")
+                                payload["maxAccounts"] = 8
                                 continue
                             elif attempt == 2:
-                                print(f"🔄 Trying with shared accounts disabled...")
-                                payload["useSharedAccounts"] = False
+                                print(f"🔄 Trying with compute budget disabled...")
+                                payload["computeUnitPriceMicroLamports"] = 0
                                 continue
                             
                             return ""
@@ -148,11 +148,11 @@ class JupiterCustomLib:
                         # Try with different parameters on 400 errors
                         if response.status_code == 400 and attempt < 2:
                             if attempt == 0:
-                                print(f"🔄 Trying with legacy transaction format...")
-                                payload["asLegacyTransaction"] = True
+                                print(f"🔄 Trying with minimal accounts...")
+                                payload["maxAccounts"] = 8
                             elif attempt == 1:
-                                print(f"🔄 Trying with shared accounts disabled...")
-                                payload["useSharedAccounts"] = False
+                                print(f"🔄 Trying with compute budget disabled...")
+                                payload["computeUnitPriceMicroLamports"] = 0
                             continue
                         
                         return ""
@@ -250,6 +250,16 @@ class JupiterCustomLib:
     def send_transaction(self, signed_transaction: str) -> Tuple[str, bool]:
         """Send signed transaction to Solana network"""
         try:
+            # Check transaction size before sending
+            import base64
+            decoded = base64.b64decode(signed_transaction)
+            tx_size = len(decoded)
+            max_size = 1644  # Maximum transaction size
+            
+            if tx_size > max_size:
+                print(f"❌ Transaction too large: {tx_size} bytes (max: {max_size})")
+                return f"Transaction too large: {tx_size} bytes", False
+            
             rpc_payload = {
                 "jsonrpc": "2.0",
                 "id": 1,
@@ -275,7 +285,7 @@ class JupiterCustomLib:
                 elif "error" in result:
                     error_msg = result["error"]
                     print(f"❌ RPC error: {error_msg}")
-                    return "", False
+                    return str(error_msg), False
             else:
                 print(f"❌ RPC request failed: {response.status_code}")
                 return "", False
@@ -284,7 +294,7 @@ class JupiterCustomLib:
             print(f"❌ Send transaction error: {e}")
             return "", False
 
-    def execute_swap(self, input_mint: str, output_mint: str, amount: int, slippage: float = 0.02) -> Tuple[str, bool]:
+    def execute_swap(self, input_mint: str, output_mint: str, amount: int, slippage: float = 0.10) -> Tuple[str, bool]:
         """Execute complete swap process with enhanced error handling"""
         try:
             print(f"🔄 Executing swap: {input_mint[:8]}... -> {output_mint[:8]}...")
